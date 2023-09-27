@@ -15,31 +15,23 @@ POSTS_COUNT = 10
 
 
 def get_filtered_posts():
-    '''Функция для фильтрации постов с количеством комментариев.'''
+    '''Функция для постов с количеством комментариев.'''
     return Post.objects.select_related(
         'author',
         'location',
         'category',
-    ).filter(
-        pub_date__lte=timezone.now(),
-        is_published=True,
-        category__is_published=True,
     ).annotate(
         comment_count=Count('comments')
     ).order_by('-pub_date')
 
 
 def post_queryset():
-    '''Возвращает QuerySet из модели с постами'''
-    return Post.objects.select_related(
-        'author',
-        'location',
-        'category',
-    ).filter(
+    '''Возвращает отфильтрованный QuerySet из модели с постами.'''
+    return get_filtered_posts().filter(
         is_published=True,
         category__is_published=True,
         pub_date__lte=timezone.now(),
-    ).order_by('-pub_date')
+    )
 
 
 class PostListView(ListView):
@@ -49,7 +41,7 @@ class PostListView(ListView):
     paginate_by = POSTS_COUNT
 
     def get_queryset(self):
-        return get_filtered_posts()
+        return post_queryset()
 
 
 class ContetnAuthorMixin(LoginRequiredMixin):
@@ -72,19 +64,15 @@ class PostDetailView(DetailView):
     def dispatch(self, request, *args, **kwargs):
         self.object = self.get_object()
         if self.object.author != self.request.user and (
-            self.object.category.is_published is False
-            or self.object.is_published is False
+            not self.object.category.is_published
+            or not self.object.is_published
             or self.object.pub_date > timezone.now()
         ):
             raise Http404
         return super().dispatch(request, *args, **kwargs)
 
     def get_queryset(self):
-        return super().get_queryset().select_related(
-            'author',
-            'location',
-            'category',
-        )
+        return super().get_queryset()
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -101,17 +89,17 @@ class CategoryListView(ListView):
     template_name = 'blog/category.html'
 
     def get_queryset(self):
-        return get_filtered_posts().filter(
-            category__slug=self.kwargs['category_slug'],
+        self.category = get_object_or_404(
+            Category.objects.filter(is_published=True),
+            slug=self.kwargs['category_slug'],
+        )
+        return post_queryset().filter(
+            category_id=self.category.id,
         )
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['category'] = get_object_or_404(
-            Category,
-            is_published=True,
-            slug=self.kwargs['category_slug'],
-        )
+        context['category'] = self.category
         return context
 
 
@@ -120,7 +108,9 @@ class ProfileRedirectMixin:
     def get_success_url(self):
         return reverse(
             'blog:profile',
-            kwargs={'username': self.request.user}
+            kwargs={
+                'username': User.objects.get(username=self.request.user)
+            }
         )
 
 
@@ -141,8 +131,8 @@ class ValidationMixin:
 
 
 class PostCreateView(
-    ValidationMixin,
     LoginRequiredMixin,
+    ValidationMixin,
     ProfileRedirectMixin,
     CreateView,
 ):
@@ -153,9 +143,7 @@ class PostCreateView(
 
 class PostUpdateView(
     ContetnAuthorMixin,
-    LoginRequiredMixin,
     PostRedirectMixin,
-    ValidationMixin,
     UpdateView,
 ):
     '''CBV для редактирования поста.'''
@@ -193,15 +181,7 @@ class ProfileListView(ListView):
             User,
             username=self.kwargs['username']
         )
-        return Post.objects.select_related(
-            'author',
-            'location',
-            'category',
-        ).filter(
-            author=self.author
-        ).annotate(
-            comment_count=Count('comments')
-        ).order_by('-pub_date')
+        return get_filtered_posts().filter(author=self.author)
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -238,7 +218,7 @@ class CommentCreateView(LoginRequiredMixin, CommentMixin, CreateView):
     def form_valid(self, form):
         form.instance.author = self.request.user
         form.instance.post = get_object_or_404(
-            get_filtered_posts(),
+            post_queryset(),
             pk=self.kwargs['post_id']
         )
         return super().form_valid(form)
