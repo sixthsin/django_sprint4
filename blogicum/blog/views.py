@@ -40,6 +40,7 @@ class PostListView(ListView):
     template_name = 'blog/index.html'
     paginate_by = POSTS_COUNT
 
+
     def get_queryset(self):
         return post_queryset()
 
