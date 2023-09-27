@@ -43,7 +43,7 @@ class PostListView(ListView):
     def get_queryset(self):
         return post_queryset()
 
-.
+
 class ContetnAuthorMixin(LoginRequiredMixin):
     '''Миксин проверки является ли пользователь автором.'''
     def dispatch(self, request, *args, **kwargs):
