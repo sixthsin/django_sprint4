@@ -128,10 +128,6 @@ class Comment(BaseModel):
         related_name='comments',
         on_delete=models.CASCADE,
     )
-    created_at = models.DateTimeField(
-        auto_now_add=True,
-        verbose_name='Дата комментария',
-    )
 
     class Meta:
         verbose_name = 'комментарий'

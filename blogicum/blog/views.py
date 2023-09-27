@@ -14,8 +14,8 @@ from .models import Category, Comment, Post, User
 POSTS_COUNT = 10
 
 
-def get_filtered_posts():
-    '''Функция для постов с количеством комментариев.'''
+def get_ordered_posts_comments_count():
+    '''Функция для сортировки постов по дате с количеством комментариев.'''
     return Post.objects.select_related(
         'author',
         'location',
@@ -25,9 +25,9 @@ def get_filtered_posts():
     ).order_by('-pub_date')
 
 
-def post_queryset():
-    '''Возвращает отфильтрованный QuerySet из модели с постами.'''
-    return get_filtered_posts().filter(
+def get_published_posts():
+    '''Возвращает опубликованные посты и датой не позднее нынешней.'''
+    return get_ordered_posts_comments_count().filter(
         is_published=True,
         category__is_published=True,
         pub_date__lte=timezone.now(),
@@ -40,8 +40,8 @@ class PostListView(ListView):
     template_name = 'blog/index.html'
     paginate_by = POSTS_COUNT
 
-    def get_queryset(self):
-        return post_queryset()
+    def __init__(self):
+        self.queryset = get_published_posts()
 
 
 class ContetnAuthorMixin(LoginRequiredMixin):
@@ -71,9 +71,6 @@ class PostDetailView(DetailView):
             raise Http404
         return super().dispatch(request, *args, **kwargs)
 
-    def get_queryset(self):
-        return super().get_queryset()
-
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['form'] = CommentForm()
@@ -93,8 +90,8 @@ class CategoryListView(ListView):
             Category.objects.filter(is_published=True),
             slug=self.kwargs['category_slug'],
         )
-        return post_queryset().filter(
-            category_id=self.category.id,
+        return get_published_posts().filter(
+            category=self.category,
         )
 
     def get_context_data(self, **kwargs):
@@ -108,9 +105,7 @@ class ProfileRedirectMixin:
     def get_success_url(self):
         return reverse(
             'blog:profile',
-            kwargs={
-                'username': User.objects.get(username=self.request.user)
-            }
+            kwargs={'username': self.request.user.username}
         )
 
 
@@ -181,7 +176,7 @@ class ProfileListView(ListView):
             User,
             username=self.kwargs['username']
         )
-        return get_filtered_posts().filter(author=self.author)
+        return get_ordered_posts_comments_count().filter(author=self.author)
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -218,7 +213,7 @@ class CommentCreateView(LoginRequiredMixin, CommentMixin, CreateView):
     def form_valid(self, form):
         form.instance.author = self.request.user
         form.instance.post = get_object_or_404(
-            post_queryset(),
+            get_published_posts(),
             pk=self.kwargs['post_id']
         )
         return super().form_valid(form)
