@@ -40,11 +40,10 @@ class PostListView(ListView):
     template_name = 'blog/index.html'
     paginate_by = POSTS_COUNT
 
-
     def get_queryset(self):
         return post_queryset()
 
-
+.
 class ContetnAuthorMixin(LoginRequiredMixin):
     '''Миксин проверки является ли пользователь автором.'''
     def dispatch(self, request, *args, **kwargs):
