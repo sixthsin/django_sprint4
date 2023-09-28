@@ -36,12 +36,10 @@ def get_published_posts():
 
 class PostListView(ListView):
     '''CBV для главной страницы с постами.'''
+    queryset = get_published_posts()
     model = Post
     template_name = 'blog/index.html'
     paginate_by = POSTS_COUNT
-
-    def __init__(self):
-        self.queryset = get_published_posts()
 
 
 class ContetnAuthorMixin(LoginRequiredMixin):
